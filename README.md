@@ -114,6 +114,8 @@ The application now includes powerful new features in the UI:
 - 🔍 **Auto-Detection**: Automatically detects your GPU and suggests optimal preset
 - 💾 **Config Export/Import**: Save your optimized settings and transfer between machines
 - 📊 **Performance Logging**: Optional detailed telemetry for troubleshooting
+- ✨ **UI Sync**: Presets automatically update UI sliders and dropdowns - what you see is what you get
+- 🧪 **Quick Test**: 30-second validation test with synthetic audio to verify everything works before processing
 
 **Access them:** Launch Gradio → Navigate to respective tabs
 
