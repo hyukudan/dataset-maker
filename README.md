@@ -141,6 +141,25 @@ See the detailed [WSL Setup Guide](wsl_setup.md) for:
 - Performance optimizations
 - Multi-GPU setup (if applicable)
 
+### Multi-GPU Configuration
+
+**Detect and Select GPU:**
+```bash
+# Interactive GPU manager
+uv run python gpu_manager.py
+
+# Or manually set GPU
+export CUDA_VISIBLE_DEVICES=0  # Use GPU 0
+export CUDA_VISIBLE_DEVICES=1  # Use GPU 1
+```
+
+**Parallel Processing with Multiple GPUs:**
+
+See [Multi-GPU Guide](MULTI_GPU_GUIDE.md) for detailed instructions on:
+- Running multiple instances in parallel
+- GPU selection and monitoring
+- Performance optimization strategies
+
 ### Verification Script
 
 Run the verification script to diagnose issues:
