@@ -1427,6 +1427,174 @@ def setup_gradio():
                     outputs=auto_fix_output,
                 )
 
+            with gr.Tab("Presets & Config"):
+                gr.Markdown("### GPU Presets & Configuration Management")
+                gr.Markdown("One-click optimization presets and configuration export/import")
+
+                with gr.Row():
+                    with gr.Column():
+                        gr.Markdown("#### 🎯 GPU Presets")
+                        gr.Markdown("Apply optimized settings for your GPU")
+
+                        detect_preset_button = gr.Button("🔍 Auto-Detect Optimal Preset", variant="primary")
+                        preset_info_output = gr.Textbox(label="Detected Configuration", lines=20, interactive=False)
+
+                        gr.Markdown("**Or Choose Manually:**")
+
+                        preset_buttons = {}
+                        with gr.Row():
+                            preset_buttons["blackwell_96gb"] = gr.Button("Blackwell 96GB Ultra", size="sm")
+                            preset_buttons["ada_48gb"] = gr.Button("Ada 48GB High Perf", size="sm")
+
+                        with gr.Row():
+                            preset_buttons["ampere_24gb"] = gr.Button("Ampere 24GB Balanced", size="sm")
+                            preset_buttons["conservative"] = gr.Button("Conservative (Any GPU)", size="sm")
+
+                        with gr.Row():
+                            preset_buttons["quality_focused"] = gr.Button("Quality Focused (Slow)", size="sm")
+
+                        apply_preset_output = gr.Textbox(label="Apply Status", lines=2, interactive=False)
+
+                    with gr.Column():
+                        gr.Markdown("#### 💾 Configuration Management")
+
+                        # Current config display
+                        current_config_display = gr.Textbox(
+                            label="Current Configuration",
+                            lines=12,
+                            interactive=False,
+                            placeholder="Click 'Show Current Config' to display"
+                        )
+
+                        with gr.Row():
+                            show_config_button = gr.Button("Show Current Config")
+                            export_config_button = gr.Button("Export Config", variant="primary")
+
+                        export_status = gr.Textbox(label="Export Status", lines=2, interactive=False)
+
+                        gr.Markdown("**Import Configuration:**")
+                        import_config_file = gr.File(label="Upload Config File (.json)", file_types=[".json"])
+                        import_config_button = gr.Button("Import & Apply", variant="secondary")
+                        import_status = gr.Textbox(label="Import Status", lines=3, interactive=False)
+
+                        gr.Markdown("**Saved Configurations:**")
+                        list_configs_button = gr.Button("List Saved Configs")
+                        saved_configs_list = gr.Textbox(label="Saved Configs", lines=6, interactive=False)
+
+                # Preset button callbacks
+                def apply_preset_handler(preset_key):
+                    import gpu_presets
+                    if preset_key not in gpu_presets.PRESETS:
+                        return f"❌ Unknown preset: {preset_key}"
+
+                    preset = gpu_presets.PRESETS[preset_key]
+                    summary = gpu_presets.format_preset_summary(preset_key)
+
+                    # Apply to environment
+                    gpu_presets.apply_preset_to_environment(preset)
+
+                    return f"{summary}\n\n✅ Preset applied! Settings will be used for next transcription run."
+
+                detect_preset_button.click(
+                    fn=lambda: gpu_presets.format_preset_summary(*gpu_presets.detect_optimal_preset()[:2]),
+                    outputs=preset_info_output,
+                )
+
+                for preset_key, button in preset_buttons.items():
+                    button.click(
+                        fn=lambda pk=preset_key: apply_preset_handler(pk),
+                        outputs=apply_preset_output,
+                    )
+
+                # Config management callbacks
+                def show_current_config_handler():
+                    import config_manager
+                    # Get current config from UI or defaults
+                    config = config_manager.create_config_from_ui_values(
+                        emilia_batch_size=16,
+                        whisper_chunk_size=20,
+                        transcriber_batch_size=16,
+                        whisper_model="large-v3",
+                        compute_type="float16",
+                        uvr_separation=True,
+                        emilia_threads=4,
+                        min_segment_duration=0.25,
+                    )
+                    return config_manager.generate_config_summary(config)
+
+                show_config_button.click(
+                    fn=show_current_config_handler,
+                    outputs=current_config_display,
+                )
+
+                def export_config_handler():
+                    import config_manager
+                    config = config_manager.create_config_from_ui_values(
+                        emilia_batch_size=16,
+                        whisper_chunk_size=20,
+                        transcriber_batch_size=16,
+                        whisper_model="large-v3",
+                        compute_type="float16",
+                        uvr_separation=True,
+                        emilia_threads=4,
+                        min_segment_duration=0.25,
+                    )
+                    success, path = config_manager.export_configuration(config)
+                    if success:
+                        return f"✅ Configuration exported to:\n{path}\n\nYou can import this on other machines."
+                    else:
+                        return f"❌ Export failed: {path}"
+
+                export_config_button.click(
+                    fn=export_config_handler,
+                    outputs=export_status,
+                )
+
+                def import_config_handler(file):
+                    import config_manager
+                    from pathlib import Path
+
+                    if file is None:
+                        return "⚠️ Please select a configuration file"
+
+                    file_path = Path(file.name) if hasattr(file, 'name') else Path(file)
+                    success, config, message = config_manager.import_configuration(file_path)
+
+                    if success:
+                        summary = config_manager.generate_config_summary(config)
+                        return f"{message}\n\n{summary}\n\n⚠️ Note: Configuration will be applied on next transcription run."
+                    else:
+                        return f"❌ {message}"
+
+                import_config_button.click(
+                    fn=import_config_handler,
+                    inputs=import_config_file,
+                    outputs=import_status,
+                )
+
+                def list_saved_configs_handler():
+                    import config_manager
+                    configs = config_manager.list_saved_configurations()
+
+                    if not configs:
+                        return "No saved configurations found"
+
+                    lines = ["Saved Configurations:\n" + "=" * 60]
+                    for cfg in configs:
+                        lines.append(f"\n📁 {cfg['filename']}")
+                        lines.append(f"   Modified: {cfg['modified']}")
+                        lines.append(f"   Size: {cfg['size_kb']:.2f} KB")
+                        if 'gpu_name' in cfg:
+                            lines.append(f"   GPU: {cfg['gpu_name']} ({cfg.get('vram_gb', 0):.0f}GB)")
+                        lines.append(f"   Path: {cfg['path']}")
+
+                    return "\n".join(lines)
+
+                list_configs_button.click(
+                    fn=list_saved_configs_handler,
+                    outputs=saved_configs_list,
+                )
+
             with gr.Tab("Export Dataset"):
                 gr.Markdown("### Export All Transcribe Folders into a Single Dataset Folder")
                 gr.Markdown("This will copy all files from subfolders (and files directly in the folder) of the project's 'transcribe' folder into a single folder named '<project>_dataset'.")
@@ -1485,6 +1653,9 @@ if __name__ == "__main__":
     import transcriber
     import llm_reformatter_script
     import system_health_checker
+    import gpu_presets
+    import config_manager
+    import performance_logger
 
     # Import your custom utilities.
     from gradio_utils import utils as gu
