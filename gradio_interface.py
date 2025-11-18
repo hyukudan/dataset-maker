@@ -1530,7 +1530,7 @@ def setup_gradio():
                     )
 
                 detect_preset_button.click(
-                    fn=lambda: gpu_presets.format_preset_summary(*gpu_presets.detect_optimal_preset()[:2]),
+                    fn=lambda: (lambda pk, _, gi: gpu_presets.format_preset_summary(pk, gi))(*gpu_presets.detect_optimal_preset()),
                     outputs=preset_info_output,
                 )
 
