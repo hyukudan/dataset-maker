@@ -69,6 +69,8 @@ Dataset_name
     uv run python gradio_interface.py
     ```
 
+    **Note:** The application performs automatic health checks on startup and will warn you if there are any configuration issues.
+
 ### RTX 6000 Blackwell Optimizations
 
 This branch includes specific optimizations for RTX 6000 Blackwell GPUs:
@@ -92,16 +94,35 @@ This branch includes specific optimizations for RTX 6000 Blackwell GPUs:
 
 ## Troubleshooting
 
+### System Health Check (NEW!)
+
+The application now includes a **System Health** tab in the UI that provides:
+- Complete system diagnostics (GPU, CUDA, ONNX Runtime)
+- Environment detection (WSL/Windows/Linux)
+- Batch size recommendations for your specific GPU
+- One-click auto-fix for common issues
+
+**Access it:** Launch Gradio → Navigate to "System Health" tab
+
 ### ONNX Runtime CUDA Provider Missing
 
 **Problem:** CUDAExecutionProvider not available even after installation
 
-**Quick Fix:**
+**Why this happens:** The package manager may install the CPU-only version of ONNX Runtime instead of the GPU version. Our dependency configuration specifies the correct version, but the auto-fix is available if needed.
+
+**Quick Fixes:**
+
+**Option 1 - UI (Easiest):**
+1. Launch Gradio: `uv run python gradio_interface.py`
+2. Go to "System Health" tab
+3. Click "Auto-Fix ONNX Runtime"
+
+**Option 2 - Command Line:**
 ```bash
 uv run python setup_onnx_cuda.py
 ```
 
-Or manually:
+**Option 3 - Manual:**
 ```bash
 uv remove onnxruntime
 uv add onnxruntime-gpu==1.20.1
@@ -113,6 +134,8 @@ uv run python -c "import onnxruntime as ort; print('Providers:', ort.get_availab
 ```
 
 You should see `['CUDAExecutionProvider', 'CPUExecutionProvider']` or similar.
+
+**Note:** Our dependency configuration should prevent this issue, but the auto-fix is available if needed.
 
 ### std::bad_alloc Errors with Pyannote/Whisper
 

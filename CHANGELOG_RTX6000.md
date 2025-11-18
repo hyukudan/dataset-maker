@@ -4,6 +4,12 @@
 
 Esta rama optimiza Dataset Maker para funcionar de manera óptima con RTX 6000 Blackwell en WSL, resolviendo problemas de `std::bad_alloc` con pyannote y whisper.
 
+**🆕 Últimas Mejoras:**
+- ✅ Verificación automática de salud del sistema al iniciar
+- ✅ Nuevo tab "System Health" en la UI con diagnóstico completo
+- ✅ Auto-fix integrado para problemas de ONNX Runtime
+- ✅ Detección automática de entorno (WSL/Windows/Linux)
+
 ---
 
 ## 🔧 Cambios en Dependencias (pyproject.toml)
