@@ -4,6 +4,10 @@ Verification script for Dataset Maker installation on RTX 6000 Blackwell.
 Checks CUDA, PyTorch, ONNX Runtime, and other critical dependencies.
 """
 
+# CRITICAL: Import setup_cuda_env FIRST to configure CUDA memory allocator
+# This prevents std::bad_alloc errors when loading WhisperX/torch on Linux/WSL
+import setup_cuda_env
+
 import sys
 import platform
 from pathlib import Path
@@ -35,12 +39,7 @@ def check_pytorch():
     """Check PyTorch installation and CUDA support."""
     print_header("PyTorch and CUDA")
 
-    # Setup CUDA env before importing torch
-    try:
-        import setup_cuda_env
-        print("✓ CUDA environment setup loaded")
-    except ImportError:
-        print("⚠ setup_cuda_env.py not found (non-critical)")
+    print("✓ CUDA environment setup loaded")
 
     try:
         import torch
@@ -151,12 +150,12 @@ def check_whisperx():
 def check_pyannote():
     """Check pyannote.audio installation."""
     print_header("Pyannote Audio")
+
     try:
         import pyannote.audio
-        print(f"Pyannote.audio version: {pyannote.audio.__version__}")
-
         from pyannote.audio import Pipeline
-        print("✓ Pyannote Pipeline available")
+        print(f"✓ Pyannote Audio is installed (version: {pyannote.audio.__version__})")
+        print("✓ Pipeline class available")
 
         # Check if HF token is configured
         import os
@@ -170,10 +169,10 @@ def check_pyannote():
         return True
 
     except ImportError as e:
-        print(f"✗ Pyannote.audio import error: {e}")
+        print(f"✗ Pyannote Audio import error: {e}")
         return False
     except Exception as e:
-        print(f"✗ Error checking pyannote: {e}")
+        print(f"✗ Error checking Pyannote Audio: {e}")
         return False
 
 

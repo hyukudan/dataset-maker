@@ -1,5 +1,12 @@
 # transcriber.py
 
+# CRITICAL: Import setup_cuda_env FIRST to configure CUDA memory allocator
+# This prevents std::bad_alloc errors when loading WhisperX/torch on Linux/WSL
+import setup_cuda_env
+
+# Import safe_globals early to register torch safe globals before heavy imports
+import safe_globals  # Automatically imports pyannote, must be early to avoid std::bad_alloc
+
 import os
 import tkinter as tk
 from tkinter import filedialog
@@ -9,7 +16,6 @@ import librosa
 import soundfile as sf
 import pysrt
 import whisperx
-import safe_globals  # Ensure torch safe globals are registered before model deserialization.
 import gc
 import time
 
@@ -490,9 +496,6 @@ def process_audio_file(audio_file, model, output_base, train_txt_path, silence_d
 
 
 def main():
-    # Setup CUDA environment before loading models
-    import setup_cuda_env  # Must be first import
-
     # Let the user select the folder containing long audio files.
     root = tk.Tk()
     root.withdraw()

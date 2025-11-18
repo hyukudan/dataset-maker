@@ -40,6 +40,29 @@ def setup_cuda_environment():
     Configure CUDA environment variables BEFORE importing torch.
     This prevents std::bad_alloc errors during initial model loading.
     """
+    # Configure LD_LIBRARY_PATH for cuDNN libraries in virtual environment
+    # This allows ctranslate2 to find cuDNN from nvidia-cudnn-cu12 package
+    # Find site-packages by checking sys.prefix (works for uv/venv)
+    import sysconfig
+    site_packages = sysconfig.get_paths()["purelib"]
+
+    cudnn_lib_path = os.path.join(site_packages, "nvidia", "cudnn", "lib")
+    ctranslate2_lib_path = os.path.join(site_packages, "ctranslate2.libs")
+
+    libs_to_add = []
+    if os.path.exists(cudnn_lib_path):
+        libs_to_add.append(cudnn_lib_path)
+    if os.path.exists(ctranslate2_lib_path):
+        libs_to_add.append(ctranslate2_lib_path)
+
+    if libs_to_add:
+        current_ld_path = os.environ.get("LD_LIBRARY_PATH", "")
+        if current_ld_path:
+            libs_to_add.append(current_ld_path)
+
+        os.environ["LD_LIBRARY_PATH"] = ":".join(libs_to_add)
+        print(f"[CUDA Setup] Added cuDNN libraries to LD_LIBRARY_PATH: {cudnn_lib_path}")
+
     # Detect GPUs before configuration
     gpus = detect_gpus()
 
@@ -72,20 +95,21 @@ def setup_cuda_environment():
         vram_gb = 48  # Default assumption
 
     # Optimize based on VRAM
+    # Using more conservative settings for WhisperX compatibility on Linux/WSL
     if vram_gb >= 80:
-        # Blackwell 96GB or A100 80GB - large chunks
-        max_split = 512
-        gc_threshold = 0.8
+        # Blackwell 96GB or A100 80GB - using conservative chunks for stability
+        max_split = 256  # Reduced from 512 for better WhisperX compatibility
+        gc_threshold = 0.7  # More aggressive GC
         print(f"[CUDA Setup] Optimized for {vram_gb:.0f}GB VRAM (Blackwell/large GPU)")
     elif vram_gb >= 40:
         # Ada 48GB or A100 40GB - medium chunks
-        max_split = 384
-        gc_threshold = 0.85
+        max_split = 256  # Reduced from 384
+        gc_threshold = 0.75
         print(f"[CUDA Setup] Optimized for {vram_gb:.0f}GB VRAM (Ada/medium GPU)")
     else:
         # Smaller GPUs - conservative
-        max_split = 256
-        gc_threshold = 0.9
+        max_split = 128  # More conservative
+        gc_threshold = 0.85
         print(f"[CUDA Setup] Optimized for {vram_gb:.0f}GB VRAM (conservative mode)")
 
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = f"expandable_segments:True,max_split_size_mb:{max_split},garbage_collection_threshold:{gc_threshold}"
@@ -111,6 +135,11 @@ def setup_cuda_environment():
     # OMP threads for CPU operations (adjust based on your CPU)
     if "OMP_NUM_THREADS" not in os.environ:
         os.environ["OMP_NUM_THREADS"] = "8"
+
+    # OpenBLAS/MKL threading configuration to avoid conflicts with CUDA
+    os.environ["OPENBLAS_NUM_THREADS"] = "1"
+    os.environ["MKL_NUM_THREADS"] = "1"
+    os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
     # Print confirmation
     print("[CUDA Setup] Environment configured for RTX 6000 Blackwell (96GB VRAM)")

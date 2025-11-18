@@ -3,14 +3,14 @@
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
 
+from whisperx.asr import FasterWhisperPipeline, WhisperModel, find_numeral_symbol_tokens, TranscriptionResult, SingleSegment
+from whisperx.audio import N_SAMPLES, SAMPLE_RATE, load_audio, log_mel_spectrogram
+
 import faster_whisper
 from typing import List, Union, Optional, NamedTuple
 import torch
 import numpy as np
 import tqdm
-from whisperx.audio import N_SAMPLES, SAMPLE_RATE, load_audio, log_mel_spectrogram
-from whisperx.types import TranscriptionResult, SingleSegment
-from whisperx.asr import WhisperModel, FasterWhisperPipeline, find_numeral_symbol_tokens
 
 
 class VadFreeFasterWhisperPipeline(FasterWhisperPipeline):
@@ -227,7 +227,6 @@ def load_asr_model(
     Raises:
         ValueError: If the whisper architecture is not recognized.
     """
-
     if whisper_arch.endswith(".en"):
         language = "en"
 

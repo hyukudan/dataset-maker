@@ -2,9 +2,9 @@
 """
 Entry point for the Emilia speech preprocessing pipeline.
 
-IMPORTANT: Before importing this module in any script, first import setup_cuda_env:
-    import setup_cuda_env  # MUST BE FIRST
-    from emilia_pipeline import run_emilia_pipeline
+IMPORTANT: This module now imports setup_cuda_env automatically at the top.
+If you're importing this module in your script, setup_cuda_env will be configured
+before any torch/pyannote imports happen, preventing std::bad_alloc errors on Linux/WSL.
 
 This script mirrors the original Amphion Emilia-Pipe workflow while integrating
 with the local repository layout (modules under `Emilia/`).  It prepares audio
@@ -24,6 +24,10 @@ Usage (with uv-managed environment):
 
 from __future__ import annotations
 
+# CRITICAL: Import setup_cuda_env FIRST to configure CUDA memory allocator
+# This prevents std::bad_alloc errors when loading torch/pyannote on Linux/WSL
+import setup_cuda_env
+
 import argparse
 import gc
 import hashlib
@@ -38,21 +42,20 @@ from typing import Any, Callable, Dict, Iterable, List, Optional, Tuple, Union
 import librosa
 import numpy as np
 import pandas as pd
-import pyannote
 import torch
 import torch.serialization
 import tqdm
 from pydub import AudioSegment
 from pyannote.audio import Pipeline
-from pyannote.audio.core.task import Resolution
+from pyannote.audio.core.task import Resolution, Specifications, Problem
 import soundfile as sf
 
 torch.serialization.add_safe_globals([torch.torch_version.TorchVersion])
-torch.serialization.add_safe_globals([pyannote.audio.core.task.Specifications])
-torch.serialization.add_safe_globals([pyannote.audio.core.task.Problem])
-torch.serialization.add_safe_globals([torch.torch_version.TorchVersion, Resolution])
+torch.serialization.add_safe_globals([Specifications])
+torch.serialization.add_safe_globals([Problem])
+torch.serialization.add_safe_globals([Resolution])
 
-import safe_globals  # Ensure torch safe globals registered before loading checkpoints.
+import safe_globals  # Ensure torch safe globals registered before loading checkpoints
 
 from Emilia.models import dnsmos, silero_vad, whisper_asr
 from infer_uvr import UVRSeparator
@@ -258,7 +261,7 @@ def separate_sources(
 
 @time_logger
 def diarise_speakers(
-    pipeline: Pipeline, audio: AudioDict, device: torch.device
+    pipeline: "Pipeline", audio: AudioDict, device: torch.device  # type: ignore
 ) -> pd.DataFrame:
     """Run speaker diarisation returning a dataframe with segment metadata."""
     waveform = torch.tensor(audio["waveform"], device=device).unsqueeze(0)
@@ -906,6 +909,8 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
         torch.cuda.empty_cache()
     gc.collect()
 
+    # LAZY IMPORT: Import whisper_asr here after pyannote to avoid std::bad_alloc
+    from Emilia.models import whisper_asr
     logger.info("Loading WhisperX ASR model (arch=%s, compute=%s)...", args.whisper_arch, args.compute_type)
     asr_model = whisper_asr.load_asr_model(
         args.whisper_arch,

@@ -15,9 +15,7 @@ dependencies = [
     "matchering>=2.0.6",
     "onnx>=1.19.1",
     "onnx2pytorch>=0.5.3",
-    "onnxruntime-gpu==1.20.1",
-    "optimum>=2.0.0",
-    "pyannote-audio==4.0.1",
+    "pyannote-audio>=3.1.1,<4.0", # v4.0+ requires torchcodec which has std::bad_alloc bug on WSL2
     "pydub>=0.25.1",
     "pyrubberband>=0.4.0",
     "pysrt>=1.1.2",
@@ -27,26 +25,33 @@ dependencies = [
     "rotary-embedding-torch>=0.8.9",
     "soundfile>=0.13.1",
     "starlette==0.38.2",
-    "torch==2.8.0",
-    "torchcodec==0.8",
+    "torch[cu128]==2.8.0",
     "urllib3==2.3",
-    "whisperx>=3.3.4",
     "psutil>=6.1.0",
+    "optimum>=2.0.0",
+    "whisperx>=3.7.0",
+    "onnxruntime-gpu==1.20.1",
+    "nvidia-cudnn-cu12>=9.1.0",
 ]
 
 [tool.uv]
+index-strategy = "unsafe-best-match"
 override-dependencies = [
     "numpy<2.0",
     "pydantic<=2.10.6",
     "gradio==4.44.1",
     "urllib3>=2.0",
-    "pyannote-audio==4.0.1",
+    "pyannote-audio>=3.1.1,<4.0",  # v4.0+ requires torchcodec
     "onnxruntime-gpu==1.20.1",
-    "pytorch-lightning>=2.5.0"]
+    "pytorch-lightning>=2.5.0",
+    "ctranslate2>=4.6.0",
+    "torch==2.8.0",
+    "torchaudio==2.8.0",
+    "triton>=3.3.0"]
 
 [tool.uv.sources]
 gradio-utils = { git = "https://github.com/JarodMica/gradio_utils.git" }
-whisperx = { git = "https://github.com/m-bain/whisperX.git", rev = "44e8bf5bb658ad6e1a80585b987fae2d48b9662c" }
+whisperx = { git = "https://github.com/m-bain/whisperX.git", branch = "main" }
 torch = [
   { index = "pytorch-cu128", extra = "cu128" },
 ]
@@ -55,6 +60,9 @@ torchvision = [
 ]
 torchaudio = [
   { index = "pytorch-cu128", extra = "cu128" },
+]
+triton = [
+  { index = "pytorch-cu128" },
 ]
 
 
