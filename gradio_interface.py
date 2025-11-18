@@ -1395,7 +1395,38 @@ def setup_gradio():
                     inputs=[adjust_preview_output, projects_dropdown],
                     outputs=save_adjust_output,
                 )
-            
+
+            with gr.Tab("System Health"):
+                gr.Markdown("### System Health Check")
+                gr.Markdown("Verify your installation, GPU configuration, and get recommendations.")
+
+                with gr.Row():
+                    check_health_button = gr.Button("Run Health Check", variant="primary")
+                    auto_fix_onnx_button = gr.Button("Auto-Fix ONNX Runtime", variant="secondary")
+
+                health_report_output = gr.Textbox(
+                    label="Health Report",
+                    lines=30,
+                    interactive=False,
+                    show_copy_button=True
+                )
+
+                auto_fix_output = gr.Textbox(
+                    label="Auto-Fix Status",
+                    lines=3,
+                    interactive=False
+                )
+
+                check_health_button.click(
+                    fn=lambda: system_health_checker.generate_health_report(),
+                    outputs=health_report_output,
+                )
+
+                auto_fix_onnx_button.click(
+                    fn=lambda: system_health_checker.auto_fix_onnx_runtime()[1],
+                    outputs=auto_fix_output,
+                )
+
             with gr.Tab("Export Dataset"):
                 gr.Markdown("### Export All Transcribe Folders into a Single Dataset Folder")
                 gr.Markdown("This will copy all files from subfolders (and files directly in the folder) of the project's 'transcribe' folder into a single folder named '<project>_dataset'.")
@@ -1453,6 +1484,7 @@ if __name__ == "__main__":
     # Import your existing modules.
     import transcriber
     import llm_reformatter_script
+    import system_health_checker
 
     # Import your custom utilities.
     from gradio_utils import utils as gu
@@ -1461,6 +1493,36 @@ if __name__ == "__main__":
     from safe_globals import register_torch_safe_globals
 
     register_torch_safe_globals()
+
+    # Automatic startup health check
+    print("\n" + "=" * 80)
+    print("🔍 Running automatic health check...")
+    print("=" * 80)
+
+    has_cuda_ort, providers, ort_msg = system_health_checker.check_onnx_runtime()
+    cuda_available, cuda_version, cuda_msg = system_health_checker.check_pytorch_cuda()
+
+    print(f"\n{cuda_msg}")
+    print(f"{ort_msg}")
+
+    if not has_cuda_ort:
+        print("\n" + "⚠️ " * 20)
+        print("WARNING: ONNX Runtime CUDA provider not detected!")
+        print("This will significantly impact performance for some models.")
+        print("\n🔧 Quick fix:")
+        print("   1. Run: uv run python setup_onnx_cuda.py")
+        print("   2. Or use the 'System Health' tab in the UI for auto-fix")
+        print("⚠️ " * 20 + "\n")
+
+    env_type, env_details = system_health_checker.detect_environment()
+    print(f"🖥️  Environment: {env_details}")
+
+    if env_type == "wsl":
+        print("💡 WSL detected - see wsl_setup.md for performance optimizations")
+
+    print("\n" + "=" * 80)
+    print("✅ Startup checks complete - launching Gradio UI...")
+    print("=" * 80 + "\n")
 
     # Aggressive garbage collection before starting Gradio
     gc.collect()
