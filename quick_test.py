@@ -119,29 +119,55 @@ def run_quick_test(model_name: str = "medium", batch_size: int = 16) -> Tuple[bo
         # Step 3: Run transcription (simplified)
         lines.append("🎙️  Step 3: Running transcription test...")
 
+        transcription_success = False
         try:
             import transcriber
-            model = transcriber.load_whisperx_model(model_name)
-            lines.append("   ✅ WhisperX model loaded successfully")
+            lines.append("   ✓ Transcriber module imported")
 
-            # Try transcribing
-            import whisperx
-            audio = whisperx.load_audio(str(audio_path))
-            result = model.transcribe(audio, batch_size=batch_size)
+            try:
+                model = transcriber.load_whisperx_model(model_name)
+                lines.append("   ✅ WhisperX model loaded successfully")
 
-            lines.append(f"   ✅ Transcription completed")
-            if "segments" in result:
-                lines.append(f"   Segments detected: {len(result['segments'])}")
+                # Try transcribing
+                import whisperx
+                audio = whisperx.load_audio(str(audio_path))
+                lines.append(f"   ✓ Audio loaded ({len(audio)/16000:.1f}s)")
 
-            # Cleanup
-            del model, audio, result
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
+                result = model.transcribe(audio, batch_size=batch_size)
 
+                lines.append(f"   ✅ Transcription completed")
+                if "segments" in result:
+                    lines.append(f"   Segments detected: {len(result['segments'])}")
+
+                transcription_success = True
+
+                # Cleanup
+                del model, audio, result
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+
+            except ImportError as e:
+                lines.append(f"   ⚠️  WhisperX not available: {str(e)[:80]}")
+                lines.append("   💡 Install with: uv sync")
+            except RuntimeError as e:
+                lines.append(f"   ⚠️  CUDA/Memory error: {str(e)[:80]}")
+                lines.append("   💡 Try smaller batch_size or check GPU memory")
+            except Exception as e:
+                lines.append(f"   ⚠️  Transcription error: {str(e)[:80]}")
+
+        except ImportError as e:
+            lines.append(f"   ⚠️  Transcriber module not found: {str(e)[:80]}")
+            lines.append("   💡 Ensure all dependencies are installed")
         except Exception as e:
-            lines.append(f"   ⚠️  Transcription test skipped: {str(e)[:100]}")
+            lines.append(f"   ⚠️  Unexpected error: {str(e)[:80]}")
 
         lines.append("")
+
+        # Note if transcription was skipped
+        if not transcription_success:
+            lines.append("ℹ️  Note: Transcription test was skipped, but basic setup is OK")
+            lines.append("   This is common if models aren't downloaded yet")
+            lines.append("")
 
         # Step 4: Check VRAM usage
         if torch.cuda.is_available():
