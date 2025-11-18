@@ -119,12 +119,14 @@ def setup_cuda_environment():
     # Configure CUDA_VISIBLE_DEVICES if not already set
     if "CUDA_VISIBLE_DEVICES" not in os.environ:
         if len(gpus) > 1:
-            # Multiple GPUs detected - log available options
+            # Multiple GPUs detected - make all available
             print(f"[CUDA Setup] Detected {len(gpus)} GPUs:")
             for gpu in gpus:
                 print(f"  GPU {gpu['id']}: {gpu['name']} ({gpu['memory']})")
-            print(f"[CUDA Setup] Using GPU 0 by default. Set CUDA_VISIBLE_DEVICES to change.")
-            os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+            # Make all GPUs available instead of limiting to GPU 0
+            all_gpu_ids = ",".join([gpu['id'] for gpu in gpus])
+            os.environ["CUDA_VISIBLE_DEVICES"] = all_gpu_ids
+            print(f"[CUDA Setup] All GPUs available. CUDA_VISIBLE_DEVICES={all_gpu_ids}")
         elif len(gpus) == 1:
             print(f"[CUDA Setup] Detected 1 GPU: {gpus[0]['name']} ({gpus[0]['memory']})")
             os.environ["CUDA_VISIBLE_DEVICES"] = "0"
@@ -135,7 +137,13 @@ def setup_cuda_environment():
     # Memory allocator configuration
     # Detect VRAM size to optimize chunk size
     # Note: This is a heuristic based on typical GPU memory (detection before torch import)
-    total_memory_str = gpus[0]["memory"] if gpus else "0 MiB"
+    # Use the GPU with maximum VRAM for configuration
+    if gpus:
+        # Find GPU with most memory
+        max_memory_gpu = max(gpus, key=lambda g: int(g["memory"].split()[0]) if g["memory"] else 0)
+        total_memory_str = max_memory_gpu["memory"]
+    else:
+        total_memory_str = "0 MiB"
 
     # Parse memory (format: "98304 MiB" or similar)
     try:

@@ -1455,26 +1455,37 @@ def setup_gradio():
                         gr.Markdown("#### 🎯 GPU Presets")
                         gr.Markdown("Apply optimized settings for your GPU")
 
-                        # GPU Selector
-                        import gpu_presets
-                        available_gpus = gpu_presets.list_available_gpus()
-                        gpu_choices = [f"GPU {i}: {name} ({vram:.1f}GB)" for i, name, vram in available_gpus]
-                        gpu_values = [i for i, _, _ in available_gpus]
+                        # GPU Selector - Dynamic initialization
+                        def get_gpu_choices():
+                            """Get GPU choices dynamically"""
+                            import gpu_presets
+                            available_gpus = gpu_presets.list_available_gpus()
+                            if available_gpus:
+                                choices = [f"GPU {i}: {name} ({vram:.1f}GB)" for i, name, vram in available_gpus]
+                                return choices, choices[0] if choices else None
+                            else:
+                                return ["No CUDA GPUs detected"], "No CUDA GPUs detected"
 
-                        if gpu_choices:
-                            gpu_selector = gr.Dropdown(
-                                choices=gpu_choices,
-                                value=gpu_choices[0] if gpu_choices else None,
-                                label="Select GPU for Detection",
-                                info="Choose which GPU to analyze for preset recommendation"
-                            )
-                        else:
-                            gpu_selector = gr.Dropdown(
-                                choices=["No CUDA GPUs detected"],
-                                value="No CUDA GPUs detected",
-                                label="Select GPU for Detection",
-                                interactive=False
-                            )
+                        gpu_choices, default_gpu = get_gpu_choices()
+                        gpu_selector = gr.Dropdown(
+                            choices=gpu_choices,
+                            value=default_gpu,
+                            label="Select GPU for Detection",
+                            info="Choose which GPU to analyze for preset recommendation",
+                            interactive=True
+                        )
+
+                        # Add refresh button for GPU list
+                        refresh_gpu_button = gr.Button("🔄 Refresh GPU List", size="sm")
+
+                        def refresh_gpu_list():
+                            choices, default = get_gpu_choices()
+                            return gr.update(choices=choices, value=default)
+
+                        refresh_gpu_button.click(
+                            fn=refresh_gpu_list,
+                            outputs=gpu_selector
+                        )
 
                         with gr.Row():
                             detect_preset_button = gr.Button("🔍 Auto-Detect Optimal Preset", variant="primary", scale=2)
