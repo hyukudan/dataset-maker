@@ -94,15 +94,28 @@ This branch includes specific optimizations for RTX 6000 Blackwell GPUs:
 
 ## Troubleshooting
 
-### System Health Check (NEW!)
+### New Features (System Health & Presets)
 
-The application now includes a **System Health** tab in the UI that provides:
+The application now includes powerful new features in the UI:
+
+**System Health Tab:**
 - Complete system diagnostics (GPU, CUDA, ONNX Runtime)
 - Environment detection (WSL/Windows/Linux)
 - Batch size recommendations for your specific GPU
 - One-click auto-fix for common issues
 
-**Access it:** Launch Gradio → Navigate to "System Health" tab
+**Presets & Config Tab (NEW!):**
+- 🎯 **GPU Presets**: One-click optimization for:
+  - Blackwell 96GB Ultra
+  - Ada 48GB High Performance
+  - Ampere 24GB Balanced
+  - Conservative (Any GPU)
+  - Quality Focused (Slow but maximum quality)
+- 🔍 **Auto-Detection**: Automatically detects your GPU and suggests optimal preset
+- 💾 **Config Export/Import**: Save your optimized settings and transfer between machines
+- 📊 **Performance Logging**: Optional detailed telemetry for troubleshooting
+
+**Access them:** Launch Gradio → Navigate to respective tabs
 
 ### ONNX Runtime CUDA Provider Missing
 
