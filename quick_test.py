@@ -212,6 +212,9 @@ def run_quick_test(model_name: str = "medium", batch_size: int = 16) -> Tuple[bo
 
 
 if __name__ == "__main__":
+    # CRITICAL: Setup CUDA environment before any torch imports
+    import setup_cuda_env
+
     # Test audio generation
     audio_path, metadata = generate_test_audio()
     print(f"Generated test audio: {audio_path}")

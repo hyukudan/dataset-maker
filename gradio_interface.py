@@ -1455,6 +1455,27 @@ def setup_gradio():
                         gr.Markdown("#### 🎯 GPU Presets")
                         gr.Markdown("Apply optimized settings for your GPU")
 
+                        # GPU Selector
+                        import gpu_presets
+                        available_gpus = gpu_presets.list_available_gpus()
+                        gpu_choices = [f"GPU {i}: {name} ({vram:.1f}GB)" for i, name, vram in available_gpus]
+                        gpu_values = [i for i, _, _ in available_gpus]
+
+                        if gpu_choices:
+                            gpu_selector = gr.Dropdown(
+                                choices=gpu_choices,
+                                value=gpu_choices[0] if gpu_choices else None,
+                                label="Select GPU for Detection",
+                                info="Choose which GPU to analyze for preset recommendation"
+                            )
+                        else:
+                            gpu_selector = gr.Dropdown(
+                                choices=["No CUDA GPUs detected"],
+                                value="No CUDA GPUs detected",
+                                label="Select GPU for Detection",
+                                interactive=False
+                            )
+
                         with gr.Row():
                             detect_preset_button = gr.Button("🔍 Auto-Detect Optimal Preset", variant="primary", scale=2)
                             apply_detected_button = gr.Button("✨ Auto-Detect & Apply", variant="primary", scale=2)
@@ -1529,14 +1550,32 @@ def setup_gradio():
                         gr.update(value=preset.min_segment_duration) # emilia_min_duration_slider
                     )
 
+                def detect_preset_with_gpu(gpu_selection):
+                    import gpu_presets
+                    # Extract device_id from selection string "GPU 0: ..."
+                    if gpu_selection and gpu_selection.startswith("GPU "):
+                        device_id = int(gpu_selection.split(":")[0].replace("GPU ", ""))
+                    else:
+                        device_id = 0
+
+                    preset_key, preset, gpu_info = gpu_presets.detect_optimal_preset(device_id)
+                    return gpu_presets.format_preset_summary(preset_key, gpu_info)
+
                 detect_preset_button.click(
-                    fn=lambda: (lambda pk, _, gi: gpu_presets.format_preset_summary(pk, gi))(*gpu_presets.detect_optimal_preset()),
+                    fn=detect_preset_with_gpu,
+                    inputs=gpu_selector,
                     outputs=preset_info_output,
                 )
 
-                def auto_detect_and_apply_handler():
+                def auto_detect_and_apply_handler(gpu_selection):
                     import gpu_presets
-                    preset_key, preset, gpu_info = gpu_presets.detect_optimal_preset()
+                    # Extract device_id from selection string
+                    if gpu_selection and gpu_selection.startswith("GPU "):
+                        device_id = int(gpu_selection.split(":")[0].replace("GPU ", ""))
+                    else:
+                        device_id = 0
+
+                    preset_key, preset, gpu_info = gpu_presets.detect_optimal_preset(device_id)
 
                     # Apply to environment
                     gpu_presets.apply_preset_to_environment(preset)
@@ -1557,6 +1596,7 @@ def setup_gradio():
 
                 apply_detected_button.click(
                     fn=auto_detect_and_apply_handler,
+                    inputs=gpu_selector,
                     outputs=[
                         preset_info_output,
                         apply_preset_output,

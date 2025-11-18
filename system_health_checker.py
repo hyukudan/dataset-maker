@@ -430,5 +430,8 @@ def auto_fix_onnx_runtime() -> Tuple[bool, str]:
 
 
 if __name__ == "__main__":
+    # CRITICAL: Setup CUDA environment before any torch imports
+    import setup_cuda_env
+
     # Run health check if executed directly
     print(generate_health_report())

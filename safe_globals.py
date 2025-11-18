@@ -59,4 +59,6 @@ def register_torch_safe_globals(extra_symbols: Optional[Iterable[str]] = None) -
 
 
 # Automatically register on import so any module that imports safe_globals is protected.
-register_torch_safe_globals()
+# DISABLED: Automatic registration causes std::bad_alloc on WSL2 with multiple CUDA libraries
+# Call register_torch_safe_globals() manually when needed instead
+# register_torch_safe_globals()

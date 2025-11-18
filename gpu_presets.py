@@ -112,9 +112,35 @@ PRESETS = {
 }
 
 
-def detect_optimal_preset() -> Tuple[str, PresetConfig, Dict[str, any]]:
+def list_available_gpus() -> list:
+    """
+    List all available GPUs with their properties
+    Returns: List of (device_id, name, vram_gb) tuples
+    """
+    try:
+        import torch
+
+        if not torch.cuda.is_available():
+            return []
+
+        gpus = []
+        for i in range(torch.cuda.device_count()):
+            props = torch.cuda.get_device_properties(i)
+            vram_gb = props.total_memory / (1024**3)
+            gpus.append((i, props.name, vram_gb))
+
+        return gpus
+    except:
+        return []
+
+
+def detect_optimal_preset(device_id: int = 0) -> Tuple[str, PresetConfig, Dict[str, any]]:
     """
     Automatically detect the best preset based on available GPU
+
+    Args:
+        device_id: GPU device ID to check (default: 0)
+
     Returns: (preset_key, preset_config, gpu_info)
     """
     gpu_info = {}
@@ -125,13 +151,18 @@ def detect_optimal_preset() -> Tuple[str, PresetConfig, Dict[str, any]]:
         if not torch.cuda.is_available():
             return "conservative", PRESETS["conservative"], gpu_info
 
+        # Check if device_id is valid
+        if device_id >= torch.cuda.device_count():
+            device_id = 0
+
         # Get GPU properties
-        props = torch.cuda.get_device_properties(0)
+        props = torch.cuda.get_device_properties(device_id)
         vram_gb = props.total_memory / (1024**3)
         compute_cap = props.major * 10 + props.minor
         gpu_name = props.name
 
         gpu_info = {
+            "device_id": device_id,
             "name": gpu_name,
             "vram_gb": vram_gb,
             "compute_cap": compute_cap,
@@ -226,6 +257,8 @@ def format_preset_summary(preset_key: str, gpu_info: Dict[str, any] = None) -> s
 
     if gpu_info:
         lines.append("📊 Detected GPU:")
+        device_id = gpu_info.get('device_id', 0)
+        lines.append(f"   Device: cuda:{device_id}")
         lines.append(f"   Name: {gpu_info.get('name', 'Unknown')}")
         lines.append(f"   VRAM: {gpu_info.get('vram_gb', 0):.1f} GB")
         lines.append(f"   Architecture: {gpu_info.get('architecture', 'Unknown')}")
