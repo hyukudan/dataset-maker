@@ -283,19 +283,29 @@ uv run python setup_onnx_cuda.py
 
 ### Optimizaciones Potenciales
 
-1. **Multi-GPU Support Nativo**
-   - Actualmente: ejecutar instancias paralelas
+1. **Multi-GPU Support Nativo** ✅ IMPLEMENTADO
+   - ✅ Detección automática de GPUs
+   - ✅ Selección interactiva con gpu_manager.py
+   - ✅ Logging de arquitectura específica
    - Futuro: paralelización nativa en pipeline
 
-2. **Dynamic Batch Sizing**
-   - Auto-ajuste basado en VRAM disponible
-   - Actualmente: recomendaciones estáticas
+2. **Architecture-Specific Optimizations** ✅ IMPLEMENTADO
+   - ✅ Detección de Blackwell vs Ada vs Ampere
+   - ✅ TF32 automático para CC >= 8.0
+   - ✅ Batch sizes recomendados por arquitectura
+   - ✅ Memory allocator optimizado por VRAM
+   - Futuro: FP8 para Blackwell (requiere model changes)
 
-3. **Quantization**
-   - int8/fp8 para modelos grandes
+3. **Dynamic Batch Sizing**
+   - ✅ Recomendaciones específicas por GPU
+   - Futuro: Auto-ajuste en runtime basado en VRAM libre
+
+4. **Quantization**
+   - Detección FP8 presente para Blackwell
+   - Futuro: int8/fp8 para modelos grandes
    - Trade-off calidad vs velocidad
 
-4. **Streaming Processing**
+5. **Streaming Processing**
    - Para archivos extremadamente largos (>4 horas)
    - Reducir peak memory usage
 
