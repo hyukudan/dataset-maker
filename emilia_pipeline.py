@@ -21,6 +21,7 @@ Usage (with uv-managed environment):
 from __future__ import annotations
 
 import argparse
+import gc
 import hashlib
 import json
 import os
@@ -278,6 +279,13 @@ def diarise_speakers(
     )
     diarise_df["start"] = diarise_df["segment"].apply(lambda seg: seg.start)
     diarise_df["end"] = diarise_df["segment"].apply(lambda seg: seg.end)
+
+    # Free memory explicitly to avoid std::bad_alloc on large files
+    del waveform
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+    gc.collect()
+
     return diarise_df
 
 
@@ -385,6 +393,10 @@ def run_asr(
     trimmed = waveform[start_frame:end_frame]
     resampled = librosa.resample(trimmed, orig_sr=sample_rate, target_sr=16000)
 
+    # Free intermediate buffers to prevent memory buildup
+    del trimmed
+    gc.collect()
+
     shifted_segments: List[Segment] = []
     for seg in segments:
         shifted_segments.append(
@@ -475,6 +487,13 @@ def run_asr(
         seg["start"] += start_time
         seg["end"] += start_time
         seg["language"] = language
+
+    # Clean up to avoid memory accumulation
+    del resampled
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
     return transcribed
 
 
@@ -710,12 +729,23 @@ def process_audio(
     )
     logger.info("process_audio: final kept segments: %d.", len(filtered))
     manifest = export_results(audio, filtered, output_dir)
+
+    # Aggressive cleanup after processing each file to prevent memory fragmentation
+    del audio, raw_waveform, diarisation, vad_segments, refined_segments, transcripts, scored_segments
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
     return manifest, filtered
 
 
 def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, Any]:
     """Load all required models based on the configuration."""
     logger = Logger.get_logger()
+
+    # Set memory management environment variables for WSL and Blackwell optimization
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:512"
+    os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Async execution for better performance
 
     cache_root = Path(
         cfg.get("download_cache")
@@ -744,7 +774,14 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
     if gpu_available:
         device = torch.device("cuda")
         device_name = "cuda"
-        logger.info("GPU detected, using CUDA execution.")
+        gpu_name = torch.cuda.get_device_name(0)
+        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
+        logger.info("GPU detected: %s with %.2f GB VRAM, using CUDA execution.", gpu_name, vram_gb)
+
+        # Enable TF32 for Blackwell architecture (Compute Capability >= 9.0)
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
+        logger.info("TF32 enabled for better Blackwell performance.")
     else:
         device = torch.device("cpu")
         device_name = "cpu"
@@ -759,15 +796,22 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
             "A valid Hugging Face token is required for pyannote diarisation."
         )
 
+    logger.info("Loading pyannote diarization model...")
     diarisation = Pipeline.from_pretrained(
         # "pyannote/speaker-diarization-3.1",
         "pyannote/speaker-diarization-community-1", # new
         token=hf_token,
         cache_dir=str(cache_map["PYANNOTE_AUDIO_CACHE"]),
-
     )
     diarisation.to(device)
+    logger.info("Pyannote model loaded successfully.")
 
+    # Free memory after loading
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
+    logger.info("Loading WhisperX ASR model (arch=%s, compute=%s)...", args.whisper_arch, args.compute_type)
     asr_model = whisper_asr.load_asr_model(
         args.whisper_arch,
         device_name,
@@ -780,8 +824,21 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
             )
         },
     )
+    logger.info("WhisperX model loaded successfully.")
 
+    # Free memory after loading
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
+    logger.info("Loading Silero VAD model...")
     vad_model = silero_vad.SileroVAD(device=device)
+    logger.info("Silero VAD model loaded successfully.")
+
+    # Free memory after loading
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
     
     do_uvr = args.do_uvr
 
