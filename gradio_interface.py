@@ -1403,6 +1403,7 @@ def setup_gradio():
                 with gr.Row():
                     check_health_button = gr.Button("Run Health Check", variant="primary")
                     auto_fix_onnx_button = gr.Button("Auto-Fix ONNX Runtime", variant="secondary")
+                    quick_test_button = gr.Button("🧪 Quick Test (30s)", variant="secondary")
 
                 health_report_output = gr.Textbox(
                     label="Health Report",
@@ -1417,6 +1418,14 @@ def setup_gradio():
                     interactive=False
                 )
 
+                quick_test_output = gr.Textbox(
+                    label="Quick Test Results",
+                    lines=25,
+                    interactive=False,
+                    show_copy_button=True,
+                    visible=False
+                )
+
                 check_health_button.click(
                     fn=lambda: system_health_checker.generate_health_report(),
                     outputs=health_report_output,
@@ -1425,6 +1434,16 @@ def setup_gradio():
                 auto_fix_onnx_button.click(
                     fn=lambda: system_health_checker.auto_fix_onnx_runtime()[1],
                     outputs=auto_fix_output,
+                )
+
+                def run_quick_test_handler():
+                    import quick_test
+                    success, report = quick_test.run_quick_test(model_name="medium", batch_size=8)
+                    return gr.update(value=report, visible=True)
+
+                quick_test_button.click(
+                    fn=run_quick_test_handler,
+                    outputs=quick_test_output,
                 )
 
             with gr.Tab("Presets & Config"):
@@ -1485,7 +1504,10 @@ def setup_gradio():
                 def apply_preset_handler(preset_key):
                     import gpu_presets
                     if preset_key not in gpu_presets.PRESETS:
-                        return f"❌ Unknown preset: {preset_key}"
+                        return (
+                            f"❌ Unknown preset: {preset_key}",
+                            gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+                        )
 
                     preset = gpu_presets.PRESETS[preset_key]
                     summary = gpu_presets.format_preset_summary(preset_key)
@@ -1493,7 +1515,17 @@ def setup_gradio():
                     # Apply to environment
                     gpu_presets.apply_preset_to_environment(preset)
 
-                    return f"{summary}\n\n✅ Preset applied! Settings will be used for next transcription run."
+                    status_msg = f"{summary}\n\n✅ Preset applied! UI components updated automatically."
+
+                    # Return updates for UI components in Transcribe tab
+                    return (
+                        status_msg,
+                        gr.update(value=preset.emilia_batch_size),  # emilia_batch_slider
+                        gr.update(value=preset.whisper_model),      # emilia_whisper_dropdown
+                        gr.update(value=preset.uvr_separation),     # emilia_uvr_checkbox
+                        gr.update(value=preset.emilia_threads),     # emilia_threads_slider
+                        gr.update(value=preset.min_segment_duration) # emilia_min_duration_slider
+                    )
 
                 detect_preset_button.click(
                     fn=lambda: gpu_presets.format_preset_summary(*gpu_presets.detect_optimal_preset()[:2]),
@@ -1503,7 +1535,14 @@ def setup_gradio():
                 for preset_key, button in preset_buttons.items():
                     button.click(
                         fn=lambda pk=preset_key: apply_preset_handler(pk),
-                        outputs=apply_preset_output,
+                        outputs=[
+                            apply_preset_output,
+                            emilia_batch_slider,
+                            emilia_whisper_dropdown,
+                            emilia_uvr_checkbox,
+                            emilia_threads_slider,
+                            emilia_min_duration_slider
+                        ],
                     )
 
                 # Config management callbacks
@@ -1656,6 +1695,7 @@ if __name__ == "__main__":
     import gpu_presets
     import config_manager
     import performance_logger
+    import quick_test
 
     # Import your custom utilities.
     from gradio_utils import utils as gu
