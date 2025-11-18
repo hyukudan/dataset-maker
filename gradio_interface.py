@@ -1439,11 +1439,16 @@ def main():
     demo.launch()
 
 if __name__ == "__main__":
+    # CRITICAL: Setup CUDA environment BEFORE any torch/pyannote imports
+    # This prevents std::bad_alloc errors during model loading (especially with 96GB VRAM)
+    import setup_cuda_env  # This must be first!
+
     import os
     import shutil
     from pathlib import Path
     import multiprocessing
     import datetime
+    import gc
 
     # Import your existing modules.
     import transcriber
@@ -1452,10 +1457,13 @@ if __name__ == "__main__":
     # Import your custom utilities.
     from gradio_utils import utils as gu
     from emilia_pipeline import run_emilia_pipeline
-    
+
     from safe_globals import register_torch_safe_globals
 
     register_torch_safe_globals()
+
+    # Aggressive garbage collection before starting Gradio
+    gc.collect()
     # =============================================================================
     # Global Project Folder
     # =============================================================================

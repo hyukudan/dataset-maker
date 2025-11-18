@@ -79,10 +79,16 @@ This branch includes specific optimizations for RTX 6000 Blackwell GPUs:
 - ✅ **WSL2 Compatible:** Special configurations for Windows Subsystem for Linux
 - ✅ **Batch Size Auto-tuning:** Recommendations based on available VRAM
 
-**Recommended Settings for RTX 6000 (48GB):**
-- Emilia pipeline `batch_size`: 16-24
-- WhisperX `chunk_size`: 20-30
-- Transcriber `batch_size`: 16-24
+**Recommended Settings:**
+- **RTX 6000 Blackwell (96GB):**
+  - Emilia pipeline `batch_size`: 24-32
+  - WhisperX `chunk_size`: 25-30
+  - Transcriber `batch_size`: 24-32
+
+- **RTX 6000 Ada (48GB):**
+  - Emilia pipeline `batch_size`: 16-24
+  - WhisperX `chunk_size`: 20-30
+  - Transcriber `batch_size`: 16-24
 
 ## Troubleshooting
 
