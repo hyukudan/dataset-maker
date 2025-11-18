@@ -35,11 +35,61 @@ def detect_gpus():
     return []
 
 
+def fix_ctranslate2_cudnn():
+    """
+    Fix ctranslate2 cuDNN compatibility by creating symlinks.
+    ctranslate2 comes with an incomplete cuDNN stub that conflicts with nvidia-cudnn-cu12.
+    This function creates symlinks to use the full cuDNN from nvidia-cudnn-cu12.
+    """
+    import sysconfig
+    site_packages = sysconfig.get_paths()["purelib"]
+
+    cudnn_lib_path = os.path.join(site_packages, "nvidia", "cudnn", "lib")
+    ctranslate2_libs_path = os.path.join(site_packages, "ctranslate2.libs")
+
+    # Only proceed if both directories exist
+    if not os.path.exists(cudnn_lib_path) or not os.path.exists(ctranslate2_libs_path):
+        return
+
+    # Fix 1: Create symlink in ctranslate2.libs for the specific cuDNN file it needs
+    cudnn_stub = os.path.join(ctranslate2_libs_path, "libcudnn-74a4c495.so.9.1.0")
+    cudnn_target = os.path.join(cudnn_lib_path, "libcudnn.so.9")
+
+    # Check if stub needs to be fixed (exists and is not a symlink to the right target)
+    if os.path.exists(cudnn_stub):
+        if os.path.islink(cudnn_stub):
+            # Already a symlink - check if it points to the right place
+            current_target = os.readlink(cudnn_stub)
+            if "nvidia/cudnn" not in current_target:
+                os.remove(cudnn_stub)
+                os.symlink(cudnn_target, cudnn_stub)
+        else:
+            # It's a regular file (the incomplete stub) - backup and replace
+            if os.path.getsize(cudnn_stub) < 200000:  # Stub is ~126KB
+                os.rename(cudnn_stub, cudnn_stub + ".ORIGINAL")
+                os.symlink(cudnn_target, cudnn_stub)
+
+    # Fix 2: Create version symlinks in nvidia/cudnn/lib for compatibility
+    cudnn_ops = os.path.join(cudnn_lib_path, "libcudnn_ops.so.9")
+    if os.path.exists(cudnn_ops):
+        for suffix in ["", ".9.1", ".9.1.0"]:
+            link_name = os.path.join(cudnn_lib_path, f"libcudnn_ops.so{suffix}")
+            if suffix and not os.path.exists(link_name):
+                os.symlink("libcudnn_ops.so.9", link_name)
+
+
 def setup_cuda_environment():
     """
     Configure CUDA environment variables BEFORE importing torch.
     This prevents std::bad_alloc errors during initial model loading.
     """
+    # Fix ctranslate2 cuDNN compatibility first
+    try:
+        fix_ctranslate2_cudnn()
+    except Exception as e:
+        # Don't fail if fix doesn't work - just warn
+        print(f"[CUDA Setup] Warning: Could not apply ctranslate2 cuDNN fix: {e}")
+
     # Configure LD_LIBRARY_PATH for cuDNN libraries in virtual environment
     # This allows ctranslate2 to find cuDNN from nvidia-cudnn-cu12 package
     # Find site-packages by checking sys.prefix (works for uv/venv)
