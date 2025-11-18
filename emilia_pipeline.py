@@ -784,14 +784,99 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
     if gpu_available:
         device = torch.device("cuda")
         device_name = "cuda"
-        gpu_name = torch.cuda.get_device_name(0)
-        vram_gb = torch.cuda.get_device_properties(0).total_memory / (1024**3)
-        logger.info("GPU detected: %s with %.2f GB VRAM, using CUDA execution.", gpu_name, vram_gb)
 
-        # Enable TF32 for Blackwell architecture (Compute Capability >= 9.0)
-        torch.backends.cuda.matmul.allow_tf32 = True
-        torch.backends.cudnn.allow_tf32 = True
-        logger.info("TF32 enabled for better Blackwell performance.")
+        # Log all available GPUs
+        num_gpus = torch.cuda.device_count()
+        logger.info("CUDA available with %d GPU(s)", num_gpus)
+
+        # Get current GPU (always 0 in current implementation)
+        current_gpu = 0
+        gpu_name = torch.cuda.get_device_name(current_gpu)
+        gpu_props = torch.cuda.get_device_properties(current_gpu)
+        vram_gb = gpu_props.total_memory / (1024**3)
+        compute_cap = gpu_props.major * 10 + gpu_props.minor
+
+        # Detect architecture based on compute capability
+        if compute_cap >= 90:
+            arch_name = "Blackwell"
+            arch_features = "FP8, TF32, Enhanced Tensor Cores"
+        elif compute_cap >= 89:
+            arch_name = "Ada Lovelace"
+            arch_features = "TF32, 4th Gen Tensor Cores, DLSS 3"
+        elif compute_cap >= 80:
+            arch_name = "Ampere"
+            arch_features = "TF32, 3rd Gen Tensor Cores"
+        else:
+            arch_name = f"Unknown (CC {compute_cap/10:.1f})"
+            arch_features = "Legacy architecture"
+
+        logger.info("Using GPU %d: %s", current_gpu, gpu_name)
+        logger.info("  Architecture: %s (Compute Capability %.1f)", arch_name, compute_cap / 10)
+        logger.info("  VRAM: %.2f GB", vram_gb)
+        logger.info("  Features: %s", arch_features)
+
+        # Log CUDA_VISIBLE_DEVICES if set
+        cuda_visible = os.environ.get("CUDA_VISIBLE_DEVICES")
+        if cuda_visible:
+            logger.info("  CUDA_VISIBLE_DEVICES: %s", cuda_visible)
+
+        # Log other GPUs if available
+        if num_gpus > 1:
+            logger.info("Other available GPUs:")
+            for i in range(num_gpus):
+                if i != current_gpu:
+                    other_name = torch.cuda.get_device_name(i)
+                    other_vram = torch.cuda.get_device_properties(i).total_memory / (1024**3)
+                    other_cc = torch.cuda.get_device_properties(i).major * 10 + torch.cuda.get_device_properties(i).minor
+                    logger.info("  GPU %d: %s (%.2f GB, CC %.1f)", i, other_name, other_vram, other_cc / 10)
+            logger.info("To use a different GPU, set CUDA_VISIBLE_DEVICES before running")
+
+        # Architecture-specific optimizations
+        if compute_cap >= 90:
+            # Blackwell optimizations
+            logger.info("Enabling Blackwell-specific optimizations:")
+
+            # TF32 for matmul and convolutions
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            logger.info("  ✓ TF32 enabled for matmul and cuDNN")
+
+            # Enable BF16 for better numerical stability on Blackwell
+            torch.backends.cudnn.benchmark = True
+            logger.info("  ✓ cuDNN benchmark mode enabled")
+
+            # Blackwell has improved memory bandwidth - use larger batch sizes
+            logger.info("  ✓ Consider using batch_size=28-32 for optimal Blackwell performance")
+
+            # FP8 support note (requires explicit model changes)
+            logger.info("  ℹ FP8 Tensor Cores available (requires explicit model quantization)")
+
+        elif compute_cap >= 89:
+            # Ada Lovelace optimizations
+            logger.info("Enabling Ada Lovelace optimizations:")
+
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            logger.info("  ✓ TF32 enabled for matmul and cuDNN")
+
+            torch.backends.cudnn.benchmark = True
+            logger.info("  ✓ cuDNN benchmark mode enabled")
+
+            logger.info("  ✓ Recommended batch_size: 20-26 for Ada architecture")
+
+        elif compute_cap >= 80:
+            # Ampere optimizations
+            logger.info("Enabling Ampere optimizations:")
+
+            torch.backends.cuda.matmul.allow_tf32 = True
+            torch.backends.cudnn.allow_tf32 = True
+            logger.info("  ✓ TF32 enabled for matmul and cuDNN")
+
+            torch.backends.cudnn.benchmark = True
+            logger.info("  ✓ cuDNN benchmark mode enabled")
+
+        else:
+            logger.warning("GPU has Compute Capability %.1f - some optimizations may not be available", compute_cap / 10)
     else:
         device = torch.device("cpu")
         device_name = "cpu"
