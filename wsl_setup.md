@@ -91,7 +91,15 @@ Este script reinstalará ONNX Runtime con soporte CUDA correcto.
 
 ### Batch Sizes Recomendados
 
-Para RTX 6000 (48GB VRAM):
+**Para RTX 6000 Blackwell (96GB VRAM):**
+
+```python
+# En emilia_pipeline.py o transcriber.py
+batch_size = 24-32          # Para WhisperX y Emilia
+chunk_size = 25-30          # Para WhisperX
+```
+
+**Para RTX 6000 Ada (48GB VRAM):**
 
 ```python
 # En emilia_pipeline.py o transcriber.py

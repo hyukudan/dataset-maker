@@ -34,6 +34,14 @@ def check_python_version():
 def check_pytorch():
     """Check PyTorch installation and CUDA support."""
     print_header("PyTorch and CUDA")
+
+    # Setup CUDA env before importing torch
+    try:
+        import setup_cuda_env
+        print("✓ CUDA environment setup loaded")
+    except ImportError:
+        print("⚠ setup_cuda_env.py not found (non-critical)")
+
     try:
         import torch
         print(f"PyTorch version: {torch.__version__}")
@@ -234,7 +242,12 @@ def estimate_batch_size():
         print(f"Available VRAM: {vram_gb:.2f} GB")
 
         # Recommendations based on VRAM
-        if vram_gb >= 48:  # RTX 6000 Ada/Blackwell
+        if vram_gb >= 80:  # RTX 6000 Blackwell 96GB or similar
+            print(f"\nRecommended batch sizes for {vram_gb:.0f}GB VRAM:")
+            print("  - Emilia pipeline batch_size: 24-32")
+            print("  - WhisperX chunk_size: 25-30")
+            print("  - Transcriber batch_size: 24-32")
+        elif vram_gb >= 48:  # RTX 6000 Ada/Blackwell 48GB
             print("\nRecommended batch sizes for RTX 6000 (48GB):")
             print("  - Emilia pipeline batch_size: 16-24")
             print("  - WhisperX chunk_size: 20-30")

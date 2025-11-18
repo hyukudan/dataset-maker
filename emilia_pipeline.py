@@ -2,6 +2,11 @@
 """
 Entry point for the Emilia speech preprocessing pipeline.
 
+IMPORTANT: Before importing this module in any script, first import setup_cuda_env:
+    import setup_cuda_env  # MUST BE FIRST
+    from emilia_pipeline import run_emilia_pipeline
+"""
+
 This script mirrors the original Amphion Emilia-Pipe workflow while integrating
 with the local repository layout (modules under `Emilia/`).  It prepares audio
 for speech-generation datasets by running:
@@ -744,8 +749,14 @@ def prepare_models(cfg: Dict[str, Any], args: argparse.Namespace) -> Dict[str, A
     logger = Logger.get_logger()
 
     # Set memory management environment variables for WSL and Blackwell optimization
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:512"
-    os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Async execution for better performance
+    # Note: These should ideally be set before importing torch (via setup_cuda_env.py)
+    # but we set them again here as a safety measure
+    if "PYTORCH_CUDA_ALLOC_CONF" not in os.environ:
+        os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True,max_split_size_mb:512,garbage_collection_threshold:0.8"
+        logger.warning("PYTORCH_CUDA_ALLOC_CONF not set - setting now. For best results, import setup_cuda_env before torch.")
+
+    if "CUDA_LAUNCH_BLOCKING" not in os.environ:
+        os.environ["CUDA_LAUNCH_BLOCKING"] = "0"  # Async execution for better performance
 
     cache_root = Path(
         cfg.get("download_cache")

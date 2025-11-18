@@ -32,8 +32,28 @@ WHISPERX_VAD_TRAIL_BUFFER_SEC = 0.2
 
 def load_whisperx_model(model_name="large-v2"):
     """Load and return the WhisperX model on CUDA (float16)."""
+    import torch
+    print(f"DEBUG: Loading WhisperX model '{model_name}'...")
+
+    # Free any cached memory before loading
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+    gc.collect()
+
     asr_options = {"initial_prompt": '"No! We must not be pushed back," he replied back. "Keep on fighting to your very deaths!"'}
-    return whisperx.load_model(model_name, device="cuda", compute_type="float16", asr_options=asr_options)
+    model = whisperx.load_model(model_name, device="cuda", compute_type="float16", asr_options=asr_options)
+
+    print(f"DEBUG: WhisperX model '{model_name}' loaded successfully.")
+
+    # Free memory after loading
+    if torch.cuda.is_available():
+        allocated = torch.cuda.memory_allocated() / (1024**3)
+        cached = torch.cuda.memory_reserved() / (1024**3)
+        print(f"DEBUG: VRAM usage - Allocated: {allocated:.2f}GB, Cached: {cached:.2f}GB")
+        torch.cuda.empty_cache()
+    gc.collect()
+
+    return model
 
 def run_whisperx_transcription(audio_path, output_dir, language="en", chunk_size=20, no_align=False, model=None, batch_size=16):
     print(f"DEBUG: Running WhisperX transcription on {audio_path}...")
@@ -470,6 +490,9 @@ def process_audio_file(audio_file, model, output_base, train_txt_path, silence_d
 
 
 def main():
+    # Setup CUDA environment before loading models
+    import setup_cuda_env  # Must be first import
+
     # Let the user select the folder containing long audio files.
     root = tk.Tk()
     root.withdraw()
@@ -477,18 +500,18 @@ def main():
     if not folder_selected:
         print("DEBUG: No folder selected. Exiting.")
         return
-    
+
     audio_dir = Path(folder_selected)
-    
+
     # Instead of writing to the chosen folder, output to a folder named output_{suffix} in the current directory.
     suffix = input("Enter output suffix (for output_{suffix} folder): ").strip() or "processed"
     start_time = time.time()
     output_base = Path.cwd() / f"output_{suffix}"
     output_base.mkdir(parents=True, exist_ok=True)
-    
+
     # Define the path to the dataset file (train.txt)
     train_txt_path = output_base / "train.txt"
-    
+
     print("DEBUG: Loading WhisperX model (large-v3)...")
     model = load_whisperx_model("large-v3")
     
