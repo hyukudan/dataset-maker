@@ -1455,7 +1455,9 @@ def setup_gradio():
                         gr.Markdown("#### 🎯 GPU Presets")
                         gr.Markdown("Apply optimized settings for your GPU")
 
-                        detect_preset_button = gr.Button("🔍 Auto-Detect Optimal Preset", variant="primary")
+                        with gr.Row():
+                            detect_preset_button = gr.Button("🔍 Auto-Detect Optimal Preset", variant="primary", scale=2)
+                            apply_detected_button = gr.Button("✨ Auto-Detect & Apply", variant="primary", scale=2)
                         preset_info_output = gr.Textbox(label="Detected Configuration", lines=20, interactive=False)
 
                         gr.Markdown("**Or Choose Manually:**")
@@ -1532,9 +1534,45 @@ def setup_gradio():
                     outputs=preset_info_output,
                 )
 
+                def auto_detect_and_apply_handler():
+                    import gpu_presets
+                    preset_key, preset, gpu_info = gpu_presets.detect_optimal_preset()
+
+                    # Apply to environment
+                    gpu_presets.apply_preset_to_environment(preset)
+
+                    summary = gpu_presets.format_preset_summary(preset_key, gpu_info)
+                    status_msg = f"{summary}\n\n✅ Detected preset auto-applied! UI components updated."
+
+                    # Return updates for both info output and UI components
+                    return (
+                        status_msg,
+                        f"✅ Auto-detected and applied: {preset.name}",
+                        gr.update(value=preset.emilia_batch_size),
+                        gr.update(value=preset.whisper_model),
+                        gr.update(value=preset.uvr_separation),
+                        gr.update(value=preset.emilia_threads),
+                        gr.update(value=preset.min_segment_duration)
+                    )
+
+                apply_detected_button.click(
+                    fn=auto_detect_and_apply_handler,
+                    outputs=[
+                        preset_info_output,
+                        apply_preset_output,
+                        emilia_batch_slider,
+                        emilia_whisper_dropdown,
+                        emilia_uvr_checkbox,
+                        emilia_threads_slider,
+                        emilia_min_duration_slider
+                    ],
+                )
+
+                # Fix: Use functools.partial to avoid lambda closure bug
+                from functools import partial
                 for preset_key, button in preset_buttons.items():
                     button.click(
-                        fn=lambda pk=preset_key: apply_preset_handler(pk),
+                        fn=partial(apply_preset_handler, preset_key),
                         outputs=[
                             apply_preset_output,
                             emilia_batch_slider,
@@ -1546,37 +1584,44 @@ def setup_gradio():
                     )
 
                 # Config management callbacks
-                def show_current_config_handler():
+                def show_current_config_handler(batch_size, whisper_model, uvr_sep, threads, min_dur):
                     import config_manager
-                    # Get current config from UI or defaults
+                    # Get current config from actual UI values
                     config = config_manager.create_config_from_ui_values(
-                        emilia_batch_size=16,
-                        whisper_chunk_size=20,
-                        transcriber_batch_size=16,
-                        whisper_model="large-v3",
+                        emilia_batch_size=batch_size,
+                        whisper_chunk_size=batch_size,  # Use same as emilia
+                        transcriber_batch_size=batch_size,
+                        whisper_model=whisper_model,
                         compute_type="float16",
-                        uvr_separation=True,
-                        emilia_threads=4,
-                        min_segment_duration=0.25,
+                        uvr_separation=uvr_sep,
+                        emilia_threads=threads,
+                        min_segment_duration=min_dur,
                     )
                     return config_manager.generate_config_summary(config)
 
                 show_config_button.click(
                     fn=show_current_config_handler,
+                    inputs=[
+                        emilia_batch_slider,
+                        emilia_whisper_dropdown,
+                        emilia_uvr_checkbox,
+                        emilia_threads_slider,
+                        emilia_min_duration_slider
+                    ],
                     outputs=current_config_display,
                 )
 
-                def export_config_handler():
+                def export_config_handler(batch_size, whisper_model, uvr_sep, threads, min_dur):
                     import config_manager
                     config = config_manager.create_config_from_ui_values(
-                        emilia_batch_size=16,
-                        whisper_chunk_size=20,
-                        transcriber_batch_size=16,
-                        whisper_model="large-v3",
+                        emilia_batch_size=batch_size,
+                        whisper_chunk_size=batch_size,
+                        transcriber_batch_size=batch_size,
+                        whisper_model=whisper_model,
                         compute_type="float16",
-                        uvr_separation=True,
-                        emilia_threads=4,
-                        min_segment_duration=0.25,
+                        uvr_separation=uvr_sep,
+                        emilia_threads=threads,
+                        min_segment_duration=min_dur,
                     )
                     success, path = config_manager.export_configuration(config)
                     if success:
@@ -1586,6 +1631,13 @@ def setup_gradio():
 
                 export_config_button.click(
                     fn=export_config_handler,
+                    inputs=[
+                        emilia_batch_slider,
+                        emilia_whisper_dropdown,
+                        emilia_uvr_checkbox,
+                        emilia_threads_slider,
+                        emilia_min_duration_slider
+                    ],
                     outputs=export_status,
                 )
 
@@ -1594,21 +1646,44 @@ def setup_gradio():
                     from pathlib import Path
 
                     if file is None:
-                        return "⚠️ Please select a configuration file"
+                        return (
+                            "⚠️ Please select a configuration file",
+                            gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+                        )
 
                     file_path = Path(file.name) if hasattr(file, 'name') else Path(file)
                     success, config, message = config_manager.import_configuration(file_path)
 
                     if success:
                         summary = config_manager.generate_config_summary(config)
-                        return f"{message}\n\n{summary}\n\n⚠️ Note: Configuration will be applied on next transcription run."
+                        status_msg = f"{message}\n\n{summary}\n\n✅ UI components updated!"
+
+                        # Update UI components with imported values
+                        return (
+                            status_msg,
+                            gr.update(value=config.get('emilia_batch_size', 16)),
+                            gr.update(value=config.get('whisper_model', 'large-v3')),
+                            gr.update(value=config.get('uvr_separation', True)),
+                            gr.update(value=config.get('emilia_threads', 4)),
+                            gr.update(value=config.get('min_segment_duration', 0.25))
+                        )
                     else:
-                        return f"❌ {message}"
+                        return (
+                            f"❌ {message}",
+                            gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+                        )
 
                 import_config_button.click(
                     fn=import_config_handler,
                     inputs=import_config_file,
-                    outputs=import_status,
+                    outputs=[
+                        import_status,
+                        emilia_batch_slider,
+                        emilia_whisper_dropdown,
+                        emilia_uvr_checkbox,
+                        emilia_threads_slider,
+                        emilia_min_duration_slider
+                    ],
                 )
 
                 def list_saved_configs_handler():
