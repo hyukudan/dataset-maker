@@ -41,7 +41,10 @@ Dataset_name
 - vibevoice_000001.wav
 ```
 
-## Installation (Windows)
+## Installation
+
+### Windows / WSL2 (Recommended for RTX 6000 Blackwell)
+
 1. Make sure you have astral uv installed on your PC
 2. Run the following:
     ```bash
@@ -49,27 +52,95 @@ Dataset_name
     cd dataset-maker
     uv sync
     ```
-3. uv should handle the installation of all packages and versioning. Once it finishes running, launch the gradio with:
+3. **Verify installation** (especially important for WSL and high-end GPUs):
+    ```bash
+    uv run python verify_installation.py
     ```
-    uv run .\gradio_interface.py
+    This will check:
+    - PyTorch with CUDA 12.8 support
+    - ONNX Runtime with CUDAExecutionProvider
+    - All dependencies are correctly installed
+    - Optimal batch sizes for your GPU
+
+4. **If using WSL2**, see [WSL Setup Guide](wsl_setup.md) for additional optimizations
+
+5. Launch the gradio interface:
+    ```bash
+    uv run python gradio_interface.py
     ```
 
-## Onnx Runtime Issue CUDA
-CUDAExecution provider may not be found even when using uv. The fix for this is to remove and then add `optimum[onnxruntime-gpu]` in the terminal
+### RTX 6000 Blackwell Optimizations
 
-### Problematic
-```
-uv run python
->>> import onnxruntime as ort
->>> print("Available providers:", ort.get_available_providers())
-Available providers: ['AzureExecutionProvider', 'CPUExecutionProvider']
+This branch includes specific optimizations for RTX 6000 Blackwell GPUs:
+
+- ✅ **Memory Management:** Aggressive garbage collection to prevent `std::bad_alloc` errors
+- ✅ **TF32 Acceleration:** Automatic TF32 enablement for Blackwell architecture (~20-30% faster)
+- ✅ **CUDA 12.8 Support:** Optimized PyTorch and ONNX Runtime versions
+- ✅ **WSL2 Compatible:** Special configurations for Windows Subsystem for Linux
+- ✅ **Batch Size Auto-tuning:** Recommendations based on available VRAM
+
+**Recommended Settings for RTX 6000 (48GB):**
+- Emilia pipeline `batch_size`: 16-24
+- WhisperX `chunk_size`: 20-30
+- Transcriber `batch_size`: 16-24
+
+## Troubleshooting
+
+### ONNX Runtime CUDA Provider Missing
+
+**Problem:** CUDAExecutionProvider not available even after installation
+
+**Quick Fix:**
+```bash
+uv run python setup_onnx_cuda.py
 ```
 
-### Fixed
+Or manually:
+```bash
+uv remove onnxruntime
+uv add onnxruntime-gpu==1.20.1
 ```
-uv run python
->>> import onnxruntime as ort
->>> print("Available providers:", ort.get_available_providers())
-Available providers: ['TensorrtExecutionProvider', 'CUDAExecutionProvider', 'CPUExecutionProvider']
+
+**Verify:**
+```bash
+uv run python -c "import onnxruntime as ort; print('Providers:', ort.get_available_providers())"
 ```
+
+You should see `['CUDAExecutionProvider', 'CPUExecutionProvider']` or similar.
+
+### std::bad_alloc Errors with Pyannote/Whisper
+
+**Problem:** Out of memory errors despite having plenty of VRAM
+
+**Solutions:**
+1. The code now includes aggressive garbage collection - this should fix most issues
+2. If still occurring, reduce batch sizes:
+   ```bash
+   # In Emilia pipeline
+   --batch-size 8
+
+   # In transcriber
+   batch_size=8
+   ```
+3. Use a smaller Whisper model:
+   ```bash
+   --whisper-arch medium  # instead of large-v3
+   ```
+
+### Performance Issues in WSL
+
+See the detailed [WSL Setup Guide](wsl_setup.md) for:
+- Environment variable configurations
+- Driver requirements
+- Performance optimizations
+- Multi-GPU setup (if applicable)
+
+### Verification Script
+
+Run the verification script to diagnose issues:
+```bash
+uv run python verify_installation.py
+```
+
+This provides detailed information about your setup and recommendations.
 
