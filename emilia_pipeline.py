@@ -5,7 +5,6 @@ Entry point for the Emilia speech preprocessing pipeline.
 IMPORTANT: Before importing this module in any script, first import setup_cuda_env:
     import setup_cuda_env  # MUST BE FIRST
     from emilia_pipeline import run_emilia_pipeline
-"""
 
 This script mirrors the original Amphion Emilia-Pipe workflow while integrating
 with the local repository layout (modules under `Emilia/`).  It prepares audio

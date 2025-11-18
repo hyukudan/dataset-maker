@@ -7,11 +7,58 @@ import os
 import sys
 
 
+def detect_gpus():
+    """
+    Detect available GPUs before importing torch.
+    Returns list of GPU indices if nvidia-smi is available.
+    """
+    try:
+        import subprocess
+        result = subprocess.run(
+            ["nvidia-smi", "--query-gpu=index,name,memory.total", "--format=csv,noheader"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            gpus = []
+            for line in result.stdout.strip().split('\n'):
+                if line:
+                    parts = line.split(',')
+                    gpu_id = parts[0].strip()
+                    name = parts[1].strip()
+                    memory = parts[2].strip()
+                    gpus.append({"id": gpu_id, "name": name, "memory": memory})
+            return gpus
+    except Exception:
+        pass
+    return []
+
+
 def setup_cuda_environment():
     """
     Configure CUDA environment variables BEFORE importing torch.
     This prevents std::bad_alloc errors during initial model loading.
     """
+    # Detect GPUs before configuration
+    gpus = detect_gpus()
+
+    # Configure CUDA_VISIBLE_DEVICES if not already set
+    if "CUDA_VISIBLE_DEVICES" not in os.environ:
+        if len(gpus) > 1:
+            # Multiple GPUs detected - log available options
+            print(f"[CUDA Setup] Detected {len(gpus)} GPUs:")
+            for gpu in gpus:
+                print(f"  GPU {gpu['id']}: {gpu['name']} ({gpu['memory']})")
+            print(f"[CUDA Setup] Using GPU 0 by default. Set CUDA_VISIBLE_DEVICES to change.")
+            os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+        elif len(gpus) == 1:
+            print(f"[CUDA Setup] Detected 1 GPU: {gpus[0]['name']} ({gpus[0]['memory']})")
+            os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+    else:
+        visible = os.environ["CUDA_VISIBLE_DEVICES"]
+        print(f"[CUDA Setup] CUDA_VISIBLE_DEVICES already set to: {visible}")
+
     # Memory allocator configuration for 96GB VRAM
     # - expandable_segments: Reduce fragmentation
     # - max_split_size_mb: Larger chunks for big models (512MB is good for 96GB)
